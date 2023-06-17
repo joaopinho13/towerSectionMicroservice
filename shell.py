@@ -23,3 +23,7 @@ class Shell:
                self.unique_id, self.section_position, self.height,
                self.top_diameter, self.bot_diameter, self.thickness,
                self.steel_density)
+
+if __name__ == '__main__':
+    a = Shell('S01', 2, 3, 4, 5, 6, 7)
+    print(a)
