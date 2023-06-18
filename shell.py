@@ -7,6 +7,7 @@ Created on Sat Jun 17 10:39:55 2023
 """
 
 class Shell:
+    
     def __init__(self, unique_id, section_position, height, top_diameter,
                  bot_diameter, thickness, steel_density):
         self.unique_id = unique_id
@@ -23,6 +24,7 @@ class Shell:
                self.unique_id, self.section_position, self.height,
                self.top_diameter, self.bot_diameter, self.thickness,
                self.steel_density)
+
 
 if __name__ == '__main__':
     a = Shell('S01', 2, 3, 4, 5, 6, 7)

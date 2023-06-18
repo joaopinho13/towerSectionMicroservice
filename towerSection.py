@@ -7,6 +7,7 @@ Created on Sat Jun 17 16:09:38 2023
 """
 
 class TowerSection:
+    
     def __init__(self, section_id):
         self.section_id = section_id
     
