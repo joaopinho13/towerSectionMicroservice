@@ -6,8 +6,31 @@ Created on Sat Jun 17 16:42:26 2023
 @author: joao
 """
 
+import sqlite3
 from shell import Shell
 from towerSection import TowerSection
+
+
+conn = sqlite3.connect('catalog.db')
+cursor = conn.cursor()
+
+# Create the "sections" table if it doesn't exist
+cursor.execute('''CREATE TABLE IF NOT EXISTS sections (
+                    section_id TEXT PRIMARY KEY
+                )''')
+
+# Create the "shells" table if it doesn't exist
+cursor.execute('''CREATE TABLE IF NOT EXISTS shells (
+                    unique_id INTEGER PRIMARY KEY,
+                    section_id TEXT,
+                    section_position INTEGER,
+                    height REAL,
+                    top_diameter REAL,
+                    bot_diameter REAL,
+                    thickness REAL,
+                    steel_density REAL,
+                    FOREIGN KEY (section_id) REFERENCES sections(section_id)
+                )''')
 
 
 def add_tower_section(catalog, section_id, shells):
@@ -17,6 +40,7 @@ def add_tower_section(catalog, section_id, shells):
         if section.section_id == section_id:
             print(f"A tower section with ID {section_id} already exists")
             return None
+    
     
     # Check if Shells ID is unique
     i = 0
@@ -81,7 +105,7 @@ def add_tower_section(catalog, section_id, shells):
     print("Tower section added successfully")
 
 
-def retrieve_tower_section(catalog, section_id):
+def retrieve_tower_section_id(catalog, section_id):
     
     for section in catalog:
         if section.section_id == section_id:
@@ -144,16 +168,16 @@ def modify_tower_section_properties(catalog, section_id, properties):
                         break  # Exit the loop once the shell is found
 
                 else:
-                    print(f"No shell found with ID '{shell_id}' in the tower section.")
+                    print(f"No shell found with ID '{shell_id}' in the tower section")
                     return
 
             break  # Exit the loop once the tower section is found
 
     else:
-        print(f"No tower section found with ID '{section_id}' in the catalog.")           
+        print(f"No tower section found with ID '{section_id}' in the catalog")           
 
 
-def retrieve_tower_sections(catalog, bot_diameter_range, top_diameter_range):
+def retrieve_tower_section_diameter(catalog, bot_diameter_range, top_diameter_range):
     matching_sections = []
 
     for section in catalog:
@@ -178,7 +202,7 @@ shell4 = Shell('S004', 4, 8, 4, 5, 2, 7.8)
 add_tower_section(catalog, "A001", [shell1, shell2, shell3, shell4])
 
 # Exemple of the function retrieve_tower_section:
-retrieve_tower_section(catalog, "A001")
+retrieve_tower_section_id(catalog, "A001")
 
 # Exemple of the function delete_tower_section:
 #delete_tower_section(catalog, "A001")
@@ -192,7 +216,7 @@ properties_to_modify = [
 modify_tower_section_properties(catalog, "A001", properties_to_modify)
 
 # Retrieve tower sections with bottom diameter between 4 and 6 and top diameter between 5 and 7
-matching_sections = retrieve_tower_sections(catalog, 7, 5)
+matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
 
 # Print the details of the matching tower sections
 for shell in matching_sections:
