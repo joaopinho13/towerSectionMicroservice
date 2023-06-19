@@ -103,8 +103,7 @@ def add_tower_section(section_id, shells):
         tower.length))
     
     for shell in shells:
-        unique_id = getNewId()
-        s = Shell(unique_id, section_id, shell['position'],
+        s = Shell(getNewId(), section_id, shell['position'],
                   shell['height'], shell['top_diameter'], shell['bot_diameter'], 
                   shell['thickness'], shell['steel_density'])
         tower.add_shell(s)
@@ -143,15 +142,21 @@ def retrieve_tower_section_id(section_id):
     cur.execute("SELECT * FROM shells WHERE shell_id=?", (section_id,))
     shell_rows = cur.fetchall()
 
-    # Add shells to tower_section
-    list_shells = []
     for shell_row in shell_rows:
-        list_shells.append(shell_row)
+        shell_info = {
+        'ID': shell_row[0],
+        'position': shell_row[2],
+        'height': shell_row[3],
+        'top_diameter': shell_row[4],
+        'bot_diameter': shell_row[5],
+        'thickness': shell_row[6],
+        'steel_density': shell_row[7],
+        }
+        print(shell_info)
 
     conn.close()
     
-    return list_shells
-
+    return
 
 
 
@@ -162,6 +167,7 @@ def delete_tower_section(section_id):
     cur.execute('SELECT * FROM sections WHERE section_id=?', (section_id,))
     if cur.fetchone():
         cur.execute("DELETE FROM sections WHERE section_id=?", (section_id,))
+        cur.execute('DELETE FROM shells WHERE shell_id=?', (section_id,))
         conn.commit()
         conn.close()
         print(f"Tower section with ID {section_id} deleted successfully")
@@ -170,110 +176,85 @@ def delete_tower_section(section_id):
     print(f"A tower section with ID {section_id} was not found in the catalog")
 
 
-# The two following functions are not up to date
-def modify_tower_section_properties(catalog, section_id, properties):
+# Function doing well but missing the restristions
+def modify_tower_section_properties(section_id, new_shell):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
-    # Find the tower section with the specified ID
-    for section in catalog:
-        if section.section_id == section_id:
-            # Modify the properties of the shells
-            for prop in properties:
-                shell_id = prop['unique_id']
-                property_name = prop['property']
-                new_value = prop['value']
 
-                # Find the shell with the specified ID
-                for shell in section.shells:
-                    if shell.unique_id == shell_id:
-                        # Modify the specified property
-                        if property_name == 'height':
-                            shell.height = new_value
-                            cur.execute("UPDATE shells SET height = ? WHERE unique_id = ?", (new_value, shell_id)) 
-                        elif property_name == 'top_diameter':
-                            shell.top_diameter = new_value
-                            cur.execute("UPDATE shells SET top_diameter = ? WHERE unique_id = ?", (new_value, shell_id)) 
-                        elif property_name == 'bot_diameter':
-                            shell.bot_diameter = new_value
-                            cur.execute("UPDATE shells SET bot_diameter = ? WHERE unique_id = ?", (new_value, shell_id)) 
-                        elif property_name == 'thickness':
-                            shell.thickness = new_value
-                            cur.execute("UPDATE shells SET thickness = ? WHERE unique_id = ?", (new_value, shell_id)) 
-                        elif property_name == 'steel_density':
-                            shell.steel_density = new_value
-                            cur.execute("UPDATE shells SET stell_density = ? WHERE unique_id = ?", (new_value, shell_id)) 
-                        else:
-                            print(f"Invalid property name: {property_name}")
-                            return
+    # Check if the tower section exists in the database
+    cur.execute('SELECT * FROM sections WHERE section_id=?', (section_id,))
+    section_row = cur.fetchone()
 
-                        print(f"Modified property '{property_name}' of shell with ID '{shell_id}'")
-                        break  # Exit the loop once the shell is found
+    if section_row is None:
+        print(f'A tower section with ID {section_id} was not found in the catalog')
+        conn.close()
+        return None
 
-                else:
-                    print(f"No shell found with ID '{shell_id}' in the tower section")
-                    return
+    # Check if the shell exists in the tower section
+    cur.execute('SELECT * FROM shells WHERE shell_id=?', (section_id,))
+    shell_row = cur.fetchone()
 
-            break  # Exit the loop once the tower section is found
+    if shell_row is None:
+        print(f'A shell with ID {section_id} was not found in the tower section')
+        conn.close()
+        return None
+    
+    # Update the dimensions and steel density of the shell
+    cur.execute('UPDATE shells SET height=?, top_diameter=?, bot_diameter=?, thickness=?, steel_density=? WHERE shell_id=?',
+                (new_shell.height, new_shell.top_diameter, new_shell.bot_diameter,
+                 new_shell.thickness, new_shell.steel_density, section_id))
 
-    else:
-        print(f"No tower section found with ID '{section_id}' in the catalog")  
     conn.commit()
-    conn.close()     
+    conn.close()
+    print(f'Shell with ID {section_id} in tower section {section_id} modified successfully')
 
 
-def retrieve_tower_section_diameter(catalog, bot_diameter_range, top_diameter_range):
+# Only returns if the bot and top diameter are equals to the shell
+def retrieve_shells_diameter(bottom_diameter, top_diameter):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
-    matching_sections = []
-    for section in catalog:
-        for shell in section.shells:
-            if bot_diameter_range >= shell.bot_diameter \
-                    and top_diameter_range <= shell.top_diameter:
-                matching_sections.append(shell)
-                cur.execute("SELECT * FROM shells WHERE unique_id = ?", (shell.unique_id,))
-                row = cur.fetchone()
-    conn.commit()
-    conn.close()   
-    return matching_sections
 
+    cur.execute('''SELECT * FROM shells
+                    WHERE bot_diameter = ? AND top_diameter = ?''',
+                (bottom_diameter, top_diameter))
+    shell_rows = cur.fetchall()
+    
+    for shell_row in shell_rows:
+        shell_info = {
+        'ID': shell_row[0],
+        'position': shell_row[2],
+        'height': shell_row[3],
+        'top_diameter': shell_row[4],
+        'bot_diameter': shell_row[5],
+        'thickness': shell_row[6],
+        'steel_density': shell_row[7],
+        }
+        print(shell_info)
+
+    conn.close()
+    return
+
+
+section_id = "TS001"
 
 # Add a tower section to the catalog
 #add_tower_section("TS001", shells)
 
-section_id = "TS001"  # ID da seção da torre que deseja recuperar
 
-shells = retrieve_tower_section_id(section_id)
-if shells is not None:
-    # A seção da torre foi encontrada no catálogo
-    print(f"Shells for tower section ID {section_id}:")
-    for shell in shells:
-        print(shell)
-
-# Exemple of the function retrieve_tower_section:
-#retrieve_tower_section_id(catalog, 'A001')
-
-# Exemple of the function delete_tower_section:
-#delete_tower_section(catalog, "A001")
-
-# Example usage:
-# properties_to_modify = [
-#     {'unique_id': 'S001', 'property': 'height', 'value': 11},
-#     {'unique_id': 'S002', 'property': 'top_diameter', 'value': 6},
-#     {'unique_id': 'S003', 'property': 'bot_diameter', 'value': 6}
-# ]
-#modify_tower_section_properties(catalog, "A001", properties_to_modify)
+# Retrieve a tower section by id
+#shells = retrieve_tower_section_id(section_id)
 
 
-# Print the details of the matching tower sections
-# matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
+# Exemple of the function delete_tower_section
+#delete_tower_section(section_id)
 
-# for shell in matching_sections:
-#     print(shell)
-
-
-
+# Example
+#new_shell = Shell(getNewId(), section_id, 3, 5, 3, 4,0.7, 2)
+#modify_tower_section_properties("TS001", new_shell)
 
 
+# Print the details
+#shells = retrieve_shells_diameter(8, 7)
 
 
 
