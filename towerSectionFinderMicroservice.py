@@ -7,160 +7,170 @@ Created on Sat Jun 17 16:42:26 2023
 """
 
 import sqlite3
+import random
 from shell import Shell
 from towerSection import TowerSection
 
 
+def getNewId():
+    return random.getrandbits(28)
+
+
 # Create Shells
-shell1 = Shell('S001', 1, 10, 7, 8, 2, 7.8)
-shell2 = Shell('S002', 2, 15, 6, 7, 2, 7.8)
-shell3 = Shell('S003', 3, 8, 5, 6, 2, 7.8)
-shell4 = Shell('S004', 4, 8, 4, 5, 2, 7.8)
+shells = [
+    {
+     'position': 1, 
+     'height': 10, 
+     'top_diameter': 8, 
+     'bot_diameter': 9, 
+     'thickness': 1, 
+     'steel_density': 7.85
+     },
+    {
+     'position': 2, 
+     'height': 15, 
+     'top_diameter': 7, 
+     'bot_diameter': 8, 
+     'thickness': 1, 
+     'steel_density': 7.85
+     },
+    {
+     'position': 3, 
+     'height': 20, 
+     'top_diameter': 6, 
+     'bot_diameter': 7, 
+     'thickness': 1, 
+     'steel_density': 7.85}
+]
 
 
-# Catalogue of Towers Sections
-catalog = []
+conn = sqlite3.connect('catalogue.db')
+cur = conn.cursor()
+cur.execute('''CREATE TABLE IF NOT EXISTS sections (
+                    section_id TEXT PRIMARY KEY,
+                    length REAL
+                )''')
+cur.execute('''CREATE TABLE IF NOT EXISTS shells (
+                    unique_id TEXT PRIMARY KEY,
+                    shell_id TEXT,
+                    section_position INTEGER,
+                    height REAL,
+                    top_diameter REAL,
+                    bot_diameter REAL,
+                    thickness REAL,
+                    steel_density REAL
+                )''')
+conn.commit()
+conn.close()
 
-
-
-def add_tower_section(catalog, section_id, shells):
+def add_tower_section(section_id, shells):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS sections (
-                        section_id TEXT PRIMARY KEY
-                    )''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS shells (
-                        unique_id TEXT PRIMARY KEY,
-                        section_position INTEGER,
-                        height REAL,
-                        top_diameter REAL,
-                        bot_diameter REAL,
-                        thickness REAL,
-                        steel_density REAL
-                    )''')
     
-    # Check if the section ID is unique
-    for section in catalog:
-        if section.section_id == section_id:
-            print(f"A tower section with ID {section_id} already exists")
-            return None
-    
-    
-    # Check if Shells ID is unique
-    i = 0
-    unique_codes = []
-    duplicate_codes = []
-    for shell in shells:
-        code = shell.unique_id
-        if code in unique_codes:
-            duplicate_codes.append(code)
-        else:
-            unique_codes.append(code)
-        if duplicate_codes:
-            print(f"A Shell section with ID {shell.unique_id} already exists")
-            return None
-        prev_unique_id = shells[i].unique_id
-        i += 1
-        for section in catalog:
-            for shell in section.shells:
-                if prev_unique_id == shell.unique_id:
-                    print(f"A Shell section with ID {shell.unique_id} already exists")
-                    return None
-    
-    # Check if the section has at least one shell
-    if len(shells) < 1:
-        print("The tower section must have at least one shell")
+    # Check if the section code already exists in the database
+    cur.execute('SELECT * FROM sections WHERE section_id=?', (section_id,))
+    if cur.fetchone():
+        print('Section code already exists. Please choose a different code')
+        conn.close()
         return None
     
-    # Check if the shell numbers are sequential, unique, and start with number 1
-    shell_numbers = []
-    for shell in shells:
-        shell_numbers.append(shell.section_position)
+    # Check if the tower section has at least one shell
+    if len(shells) == 0:
+        print('A tower section must have at least one shell')
+        conn.close()
+        return
     
-    i = 1
-    expected_numbers = []
-    for pos in range(len(shells)):
-        expected_numbers.append(i)
-        i += 1
-    if shell_numbers != expected_numbers:
-        print("The shell numbers must be sequential, unique, and start with number 1")
-        return None
-    
-    # Check if the shell diameters are contiguous between adjacent shells
-    prev_top_diameter = shells[0].top_diameter
-    for shell in shells[1:]:
-        if prev_top_diameter != shell.bot_diameter:
-            print("The shell diameters are not contiguous between adjacent shells")
-            return None
-        if shell.top_diameter > shell.bot_diameter:
-            print("Top diameter bigger than Bottom diameter")
-            return None
-        prev_top_diameter = shell.top_diameter
+    # Check if shell numbers are sequential, unique, and start with number 1
+    shell_numbers = [shell['position'] for shell in shells]
+    if shell_numbers != list(range(1, len(shell_numbers) + 1)):
+        print('Invalid shell numbers. Shell numbers must be sequential, unique, and start with number 1')
+        conn.close()
+        return
+        
+    # Check if shell diameters are contiguous
+    for i in range(len(shells) - 1):
+        if shells[i]['top_diameter'] != shells[i + 1]['bot_diameter']:
+            print('Invalid shell diameters. Diameters must be contiguous between adjacent shells')
+            conn.close()
+            return
 
-    # Calculate the total length of the section
-    total_length = sum(shell.height for shell in shells)
-
-    # Create the new tower section and add it to the catalog
-    section = TowerSection(section_id)
-    section.shells = shells
-    section.length = total_length
-    catalog.append(section)
+    # Calculate the length of the tower section
+    length = sum(shell['height'] for shell in shells)
     
-    # Add to the SQLite DataBase
-    cur.execute("INSERT INTO sections VALUES (?)", (section_id,))
+    tower = TowerSection(section_id, length)
+    cur.execute("INSERT INTO sections VALUES (?,?)", (
+        tower.section_id,
+        tower.length))
     
     for shell in shells:
-        cur.execute("INSERT INTO shells VALUES (?,?,?,?,?,?,?)", (
-            shell.unique_id,
-            shell.section_position,
-            shell.height,
-            shell.top_diameter,
-            shell.bot_diameter,
-            shell.thickness,
-            shell.steel_density
+        unique_id = getNewId()
+        s = Shell(unique_id, section_id, shell['position'],
+                  shell['height'], shell['top_diameter'], shell['bot_diameter'], 
+                  shell['thickness'], shell['steel_density'])
+        tower.add_shell(s)
+        
+        # Add to the SQLite DataBase
+        cur.execute("INSERT INTO shells VALUES (?,?,?,?,?,?,?,?)", (
+            s.unique_id,
+            s.shell_id,
+            s.section_position,
+            s.height,
+            s.top_diameter,
+            s.bot_diameter,
+            s.thickness,
+            s.steel_density
     ))
-
     conn.commit()
     conn.close()
     print("Tower section added successfully")
 
 
 
-def retrieve_tower_section_id(catalog, section_id):
-    for section in catalog:
-        if section.section_id == section_id:
-            print(f"Tower Section ID: {section.section_id}")
-            print("Shells:")
-            for shell in section.shells:
-                print("----------")
-                print(f"Shell number (ID): {shell.unique_id}")
-                print(f"Position: {shell.section_position}")
-                print(f"Height: {shell.height}")
-                print(f"Top diameter: {shell.top_diameter}")
-                print(f"Bottom diameter: {shell.bot_diameter}")
-                print(f"Thickness: {shell.thickness}")
-                print(f"Steel density: {shell.steel_density}")
-            return None
-    print(f"A tower section with ID {section_id} was not found in the catalog")
-
-
-
-def delete_tower_section(catalog, section_id):
-    for i, section in enumerate(catalog):
-        if section.section_id == section_id:
-            del catalog[i]
-            print(f"Tower section with ID {section_id} deleted successfully")
-            return None
-        
+def retrieve_tower_section_id(section_id):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
-    cur.execute("DELETE FROM sections WHERE section_id=?", (section_id,))
-    conn.commit()
+    
+    # Check if the section code exists in the database
+    cur.execute('SELECT * FROM sections WHERE section_id=?', (section_id,))
+    section_row = cur.fetchone()
+
+    if section_row is None:
+        print(f'A tower section with ID {section_id} was not found in the catalog')
+        conn.close()
+        return None
+
+    # Search for the shells
+    cur.execute("SELECT * FROM shells WHERE shell_id=?", (section_id,))
+    shell_rows = cur.fetchall()
+
+    # Add shells to tower_section
+    list_shells = []
+    for shell_row in shell_rows:
+        list_shells.append(shell_row)
+
     conn.close()
+    
+    return list_shells
+
+
+
+
+def delete_tower_section(section_id):
+    conn = sqlite3.connect('catalogue.db')
+    cur = conn.cursor()
+    # Check if the section code exists in the database
+    cur.execute('SELECT * FROM sections WHERE section_id=?', (section_id,))
+    if cur.fetchone():
+        cur.execute("DELETE FROM sections WHERE section_id=?", (section_id,))
+        conn.commit()
+        conn.close()
+        print(f"Tower section with ID {section_id} deleted successfully")
+        return None
+    
     print(f"A tower section with ID {section_id} was not found in the catalog")
 
 
-
+# The two following functions are not up to date
 def modify_tower_section_properties(catalog, section_id, properties):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
@@ -211,7 +221,6 @@ def modify_tower_section_properties(catalog, section_id, properties):
     conn.close()     
 
 
-
 def retrieve_tower_section_diameter(catalog, bot_diameter_range, top_diameter_range):
     conn = sqlite3.connect('catalogue.db')
     cur = conn.cursor()
@@ -229,7 +238,16 @@ def retrieve_tower_section_diameter(catalog, bot_diameter_range, top_diameter_ra
 
 
 # Add a tower section to the catalog
-add_tower_section(catalog, 'A001', [shell1, shell2, shell3])
+#add_tower_section("TS001", shells)
+
+section_id = "TS001"  # ID da seção da torre que deseja recuperar
+
+shells = retrieve_tower_section_id(section_id)
+if shells is not None:
+    # A seção da torre foi encontrada no catálogo
+    print(f"Shells for tower section ID {section_id}:")
+    for shell in shells:
+        print(shell)
 
 # Exemple of the function retrieve_tower_section:
 #retrieve_tower_section_id(catalog, 'A001')
@@ -247,10 +265,10 @@ add_tower_section(catalog, 'A001', [shell1, shell2, shell3])
 
 
 # Print the details of the matching tower sections
-matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
+# matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
 
-for shell in matching_sections:
-    print(shell)
+# for shell in matching_sections:
+#     print(shell)
 
 
 
