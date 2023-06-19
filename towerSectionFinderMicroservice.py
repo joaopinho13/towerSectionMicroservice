@@ -11,29 +11,33 @@ from shell import Shell
 from towerSection import TowerSection
 
 
-conn = sqlite3.connect('catalog.db')
-cursor = conn.cursor()
+# Create Shells
+shell1 = Shell('S001', 1, 10, 7, 8, 2, 7.8)
+shell2 = Shell('S002', 2, 15, 6, 7, 2, 7.8)
+shell3 = Shell('S003', 3, 8, 5, 6, 2, 7.8)
+shell4 = Shell('S004', 4, 8, 4, 5, 2, 7.8)
 
-# Create the "sections" table if it doesn't exist
-cursor.execute('''CREATE TABLE IF NOT EXISTS sections (
-                    section_id TEXT PRIMARY KEY
-                )''')
 
-# Create the "shells" table if it doesn't exist
-cursor.execute('''CREATE TABLE IF NOT EXISTS shells (
-                    unique_id INTEGER PRIMARY KEY,
-                    section_id TEXT,
-                    section_position INTEGER,
-                    height REAL,
-                    top_diameter REAL,
-                    bot_diameter REAL,
-                    thickness REAL,
-                    steel_density REAL,
-                    FOREIGN KEY (section_id) REFERENCES sections(section_id)
-                )''')
+# Catalogue of Towers Sections
+catalog = []
+
 
 
 def add_tower_section(catalog, section_id, shells):
+    conn = sqlite3.connect('catalogue.db')
+    cur = conn.cursor()
+    cur.execute('''CREATE TABLE IF NOT EXISTS sections (
+                        section_id TEXT PRIMARY KEY
+                    )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS shells (
+                        unique_id TEXT PRIMARY KEY,
+                        section_position INTEGER,
+                        height REAL,
+                        top_diameter REAL,
+                        bot_diameter REAL,
+                        thickness REAL,
+                        steel_density REAL
+                    )''')
     
     # Check if the section ID is unique
     for section in catalog:
@@ -101,12 +105,28 @@ def add_tower_section(catalog, section_id, shells):
     section.shells = shells
     section.length = total_length
     catalog.append(section)
+    
+    # Add to the SQLite DataBase
+    cur.execute("INSERT INTO sections VALUES (?)", (section_id,))
+    
+    for shell in shells:
+        cur.execute("INSERT INTO shells VALUES (?,?,?,?,?,?,?)", (
+            shell.unique_id,
+            shell.section_position,
+            shell.height,
+            shell.top_diameter,
+            shell.bot_diameter,
+            shell.thickness,
+            shell.steel_density
+    ))
 
+    conn.commit()
+    conn.close()
     print("Tower section added successfully")
 
 
+
 def retrieve_tower_section_id(catalog, section_id):
-    
     for section in catalog:
         if section.section_id == section_id:
             print(f"Tower Section ID: {section.section_id}")
@@ -121,22 +141,29 @@ def retrieve_tower_section_id(catalog, section_id):
                 print(f"Thickness: {shell.thickness}")
                 print(f"Steel density: {shell.steel_density}")
             return None
-    
     print(f"A tower section with ID {section_id} was not found in the catalog")
 
 
+
 def delete_tower_section(catalog, section_id):
-    
     for i, section in enumerate(catalog):
         if section.section_id == section_id:
             del catalog[i]
             print(f"Tower section with ID {section_id} deleted successfully")
             return None
-    
+        
+    conn = sqlite3.connect('catalogue.db')
+    cur = conn.cursor()
+    cur.execute("DELETE FROM sections WHERE section_id=?", (section_id,))
+    conn.commit()
+    conn.close()
     print(f"A tower section with ID {section_id} was not found in the catalog")
 
 
+
 def modify_tower_section_properties(catalog, section_id, properties):
+    conn = sqlite3.connect('catalogue.db')
+    cur = conn.cursor()
     # Find the tower section with the specified ID
     for section in catalog:
         if section.section_id == section_id:
@@ -152,14 +179,19 @@ def modify_tower_section_properties(catalog, section_id, properties):
                         # Modify the specified property
                         if property_name == 'height':
                             shell.height = new_value
+                            cur.execute("UPDATE shells SET height = ? WHERE unique_id = ?", (new_value, shell_id)) 
                         elif property_name == 'top_diameter':
                             shell.top_diameter = new_value
+                            cur.execute("UPDATE shells SET top_diameter = ? WHERE unique_id = ?", (new_value, shell_id)) 
                         elif property_name == 'bot_diameter':
                             shell.bot_diameter = new_value
+                            cur.execute("UPDATE shells SET bot_diameter = ? WHERE unique_id = ?", (new_value, shell_id)) 
                         elif property_name == 'thickness':
                             shell.thickness = new_value
+                            cur.execute("UPDATE shells SET thickness = ? WHERE unique_id = ?", (new_value, shell_id)) 
                         elif property_name == 'steel_density':
                             shell.steel_density = new_value
+                            cur.execute("UPDATE shells SET stell_density = ? WHERE unique_id = ?", (new_value, shell_id)) 
                         else:
                             print(f"Invalid property name: {property_name}")
                             return
@@ -174,51 +206,49 @@ def modify_tower_section_properties(catalog, section_id, properties):
             break  # Exit the loop once the tower section is found
 
     else:
-        print(f"No tower section found with ID '{section_id}' in the catalog")           
+        print(f"No tower section found with ID '{section_id}' in the catalog")  
+    conn.commit()
+    conn.close()     
+
 
 
 def retrieve_tower_section_diameter(catalog, bot_diameter_range, top_diameter_range):
+    conn = sqlite3.connect('catalogue.db')
+    cur = conn.cursor()
     matching_sections = []
-
     for section in catalog:
         for shell in section.shells:
             if bot_diameter_range >= shell.bot_diameter \
                     and top_diameter_range <= shell.top_diameter:
                 matching_sections.append(shell)
-
+                cur.execute("SELECT * FROM shells WHERE unique_id = ?", (shell.unique_id,))
+                row = cur.fetchone()
+    conn.commit()
+    conn.close()   
     return matching_sections
 
 
-# Catalogue of Towers Sections
-catalog = []
-
-# Create some shells
-shell1 = Shell('S001', 1, 10, 7, 8, 2, 7.8)
-shell2 = Shell('S002', 2, 15, 6, 7, 2, 7.8)
-shell3 = Shell('S003', 3, 8, 5, 6, 2, 7.8)
-shell4 = Shell('S004', 4, 8, 4, 5, 2, 7.8)
-
 # Add a tower section to the catalog
-add_tower_section(catalog, "A001", [shell1, shell2, shell3, shell4])
+add_tower_section(catalog, 'A001', [shell1, shell2, shell3])
 
 # Exemple of the function retrieve_tower_section:
-retrieve_tower_section_id(catalog, "A001")
+#retrieve_tower_section_id(catalog, 'A001')
 
 # Exemple of the function delete_tower_section:
 #delete_tower_section(catalog, "A001")
 
 # Example usage:
-properties_to_modify = [
-    {'unique_id': 'S001', 'property': 'height', 'value': 11},
-    {'unique_id': 'S002', 'property': 'top_diameter', 'value': 6},
-    {'unique_id': 'S003', 'property': 'bot_diameter', 'value': 6}
-]
-modify_tower_section_properties(catalog, "A001", properties_to_modify)
+# properties_to_modify = [
+#     {'unique_id': 'S001', 'property': 'height', 'value': 11},
+#     {'unique_id': 'S002', 'property': 'top_diameter', 'value': 6},
+#     {'unique_id': 'S003', 'property': 'bot_diameter', 'value': 6}
+# ]
+#modify_tower_section_properties(catalog, "A001", properties_to_modify)
 
-# Retrieve tower sections with bottom diameter between 4 and 6 and top diameter between 5 and 7
-matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
 
 # Print the details of the matching tower sections
+matching_sections = retrieve_tower_section_diameter(catalog, 7, 5)
+
 for shell in matching_sections:
     print(shell)
 
